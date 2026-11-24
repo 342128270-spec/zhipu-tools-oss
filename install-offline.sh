@@ -23,7 +23,8 @@ fi
 echo "wheel 目录: $WHEELS"
 echo "==> 创建虚拟环境 $VENV"
 "$PY" -m venv "$VENV"
-"$VENV/bin/python" -m pip install -q --upgrade pip setuptools wheel --no-index --find-links "$WHEELS"
+# 引导包（pip/setuptools/wheel）有就装，没有就跳过，不影响主依赖
+"$VENV/bin/python" -m pip install -q --upgrade pip setuptools wheel --no-index --find-links "$WHEELS" 2>/dev/null || true
 echo "==> 离线安装依赖"
 "$VENV/bin/pip" install -q --no-index --find-links "$WHEELS" -r requirements.txt
 echo "==> 完成"
