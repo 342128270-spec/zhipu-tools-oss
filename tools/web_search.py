@@ -9,10 +9,10 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/122.0 Safari/537.36")
 
 SHORTCUTS = {
-    "search_std": ["bing", "baidu"],
-    "search_pro": ["bing", "baidu"],
-    "search_pro_sogou": ["bing", "baidu"],
-    "search_pro_quark": ["bing", "baidu"],
+    "search_std": ["bing", "baidu", "so360"],
+    "search_pro": ["bing", "baidu", "so360"],
+    "search_pro_sogou": ["so360", "baidu", "bing"],
+    "search_pro_quark": ["baidu", "so360", "bing"],
 }
 
 
@@ -81,30 +81,85 @@ def _baidu(q, limit):
     return out
 
 
-ENGINES = {"bing": _bing, "baidu": _baidu}
+def _so360(q, limit):
+    out = []
+    r = httpx.get("https://www.so.com/s",
+                  params={"q": q},
+                  headers={"User-Agent": UA, "Accept-Language": "zh-CN,zh;q=0.9"},
+                  timeout=15, follow_redirects=True)
+    soup = BeautifulSoup(r.text, "lxml")
+    for li in soup.select("li.res-list, div.result"):
+        a = li.select_one("h3 a")
+        if not a:
+            continue
+        href = a.get("href", "")
+        if not href.startswith("http"):
+            continue
+        cap = li.select_one("p.res-desc") or li.select_one(".res-desc") or li.select_one("p")
+        title = _clean(a.get_text())
+        if not title:
+            continue
+        out.append({"title": title, "link": href,
+                    "content": _clean(cap.get_text() if cap else ""),
+                    "media": "360", "icon": "", "refer": "360"})
+        if len(out) >= limit:
+            break
+    return out
+
+
+ENGINES = {"bing": _bing, "baidu": _baidu, "so360": _so360}
+
+
+def _relevance(item, q):
+    """简单相关度：查询词在标题命中权重高，在摘要命中权重低，多引擎交叉加分。"""
+    import re as _re
+    q_low = q.lower()
+    terms = [t for t in _re.sub(r"[^\w\u4e00-\u9fff]+", " ", q_low).split() if t]
+    if not terms:
+        terms = list(q_low)
+    title = item["title"].lower()
+    body = item["content"].lower()
+    score = 0.0
+    for t in set(terms):
+        if t in title:
+            score += 3.0
+        elif t in body:
+            score += 0.8
+    if item["content"]:
+        score += 0.3
+    return score
 
 
 def search(query, engine="search_std", limit=10):
     order = SHORTCUTS.get(engine) or [engine] if engine in ENGINES else SHORTCUTS["search_std"]
     results, errors = [], []
+    # 每个引擎都取一份，才能做交叉去重与相关度重排；单引擎独占会丢掉多源覆盖
+    per = max(limit, 8)
     for name in order:
         fn = ENGINES.get(name)
         if not fn:
             continue
         try:
-            results.extend(fn(query, limit - len(results)))
+            results.extend(fn(query, per))
         except Exception as e:
             errors.append(name + ": " + str(e)[:120])
-        if len(results) >= limit:
-            break
-    # 去重
-    seen, uniq = set(), []
+    # 去重 + 多引擎交叉标记
+    seen, uniq = {}, []
     for it in results:
         k = it["link"].split("#")[0]
         if k in seen:
+            seen[k]["engines"].append(it["refer"])
             continue
-        seen.add(k)
+        it = dict(it)
+        it["engines"] = [it["refer"]]
+        seen[k] = it
         uniq.append(it)
+
+    # 相关度排序：命中的引擎越多、标题覆盖越高，排越前
+    for it in uniq:
+        it["score"] = round(_relevance(it, query) + 0.5 * (len(it["engines"]) - 1), 3)
+    uniq.sort(key=lambda x: -x["score"])
+
     return {
         "id": "ws-" + uuid.uuid4().hex[:16],
         "created": int(time.time()),
