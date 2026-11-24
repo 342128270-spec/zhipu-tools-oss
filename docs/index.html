@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>zhipu-tools-oss · 开源工具箱</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--dim:#8b949e;--line:#21262d;--acc:#58a6ff;--ok:#3fb950}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:56px 24px 96px}
+  h1{font-size:38px;margin:0 0 8px;letter-spacing:-.5px}
+  .sub{color:var(--dim);font-size:18px;margin:0 0 40px}
+  h2{font-size:20px;margin:48px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .badge{display:inline-block;font-size:12px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--ok);margin-left:8px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500;font-size:13px}
+  code{background:#161b22;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  pre{background:#161b22;border:1px solid var(--line);border-radius:8px;padding:16px;overflow:auto;font-size:13px;line-height:1.5}
+  pre code{background:none;padding:0}
+  a{color:var(--acc);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:8px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:16px;background:#11161d}
+  .card b{display:block;margin-bottom:6px}
+  .card span{color:var(--dim);font-size:14px}
+  footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>zhipu-tools-oss</h1>
+<p class="sub">智谱开放平台工具 API 的开源自建替代 · 本地运行 · 无 API Key · 无计费<span class="badge">8/8 通过</span></p>
+
+<p>把 <code>base_url</code> 从 <code>https://open.bigmodel.cn/api</code> 换成 <code>http://127.0.0.1:8088</code>，客户端代码不用改。</p>
+
+<h2>能力</h2>
+<div class="grid">
+  <div class="card"><b>联网搜索</b><span>必应 / 百度多引擎合并去重</span></div>
+  <div class="card"><b>网页正文</b><span>trafilatura 正文提取，去广告导航</span></div>
+  <div class="card"><b>文件解析</b><span>PDF / Word / HTML / 图片 → Markdown</span></div>
+  <div class="card"><b>OCR</b><span>macOS Vision 离线识别，中英混排</span></div>
+  <div class="card"><b>内容安全</b><span>可自定义规则表</span></div>
+  <div class="card"><b>向量化</b><span>hashing n-gram，可选语义模型</span></div>
+  <div class="card"><b>知识库 RAG</b><span>SQLite + BM25Plus，中文二元组切分</span></div>
+  <div class="card"><b>批处理</b><span>转发到任意 OpenAI 兼容端点</span></div>
+</div>
+
+<h2>端点</h2>
+<table>
+<tr><th>能力</th><th>方法</th><th>路径</th><th>后端</th></tr>
+<tr><td>搜索</td><td>POST</td><td><code>/paas/v4/web_search</code></td><td>bing + baidu</td></tr>
+<tr><td>网页正文</td><td>POST</td><td><code>/paas/v4/reader</code></td><td>trafilatura</td></tr>
+<tr><td>文件解析</td><td>POST</td><td><code>/paas/v4/files/parser/sync</code></td><td>PyMuPDF / python-docx</td></tr>
+<tr><td>OCR</td><td>POST</td><td><code>/paas/v4/files/ocr</code></td><td>macOS Vision</td></tr>
+<tr><td>内容安全</td><td>POST</td><td><code>/paas/v4/moderations</code></td><td>规则表</td></tr>
+<tr><td>向量化</td><td>POST</td><td><code>/paas/v4/embeddings</code></td><td>hashing n-gram</td></tr>
+<tr><td>知识库</td><td>*</td><td><code>/llm-application/open/knowledge</code></td><td>SQLite + BM25</td></tr>
+<tr><td>批处理</td><td>*</td><td><code>/paas/v4/batches</code></td><td>OpenAI 兼容转发</td></tr>
+</table>
+
+<h2>安装</h2>
+<pre><code>git clone &lt;repo&gt; &amp;&amp; cd zhipu-tools-oss
+./install.sh    # 建 venv，装依赖
+./start.sh      # 127.0.0.1:8088</code></pre>
+
+<h2>调用</h2>
+<pre><code>curl -s http://127.0.0.1:8088/paas/v4/web_search \
+  -H "Content-Type: application/json" \
+  -d '{"search_query":"智谱 GLM","count":5}'</code></pre>
+
+<h2>设计取舍</h2>
+<table>
+<tr><th>选择</th><th>原因</th></tr>
+<tr><td>搜索走 HTML 解析</td><td>无需 Key；被反爬时返回空并在 errors 说明</td></tr>
+<tr><td>检索用 BM25 而非向量库</td><td>不下载模型、零内存占用，词面命中够用</td></tr>
+<tr><td>OCR 用系统 Vision</td><td>离线、中文准、不下载权重</td></tr>
+<tr><td>批处理只做转发</td><td>不产 token，负责排队与落盘</td></tr>
+</table>
+
+<h2>许可</h2>
+<p>本仓 MIT。依赖：trafilatura (Apache-2.0)、python-docx (MIT)、rank-bm25 (Apache-2.0)、PyMuPDF (AGPL-3.0)。</p>
+
+<footer>
+  <p>zhipu-tools-oss · 自建工具链 · 数据全部留在本机</p>
+</footer>
+
+</div>
+</body>
+</html>
