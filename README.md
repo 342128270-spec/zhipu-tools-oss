@@ -25,7 +25,8 @@ https://open.bigmodel.cn/api 换成 http://127.0.0.1:8088，其余不动。
 ## 安装
 
     cd zhipu-tools-oss
-    ./install.sh          # 建 venv 到 ~/.zhipu-tools/venv
+    ./install.sh          # 联网安装，建 venv 到 ~/.zhipu-tools/venv
+    ./install-offline.sh  # 无网安装，从本地 wheel 目录装（ZT_WHEELS 指定）
     ./start.sh            # 起服务，默认 127.0.0.1:8088
 
     ZT_PORT=9000 ZT_TOKEN=mysecret ./start.sh   # 换端口并开启 Bearer 校验
