@@ -11,14 +11,56 @@ SUPPORTED = {".pdf", ".docx", ".txt", ".md", ".markdown", ".html", ".htm",
              ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"}
 
 
+def _md_table(rows):
+    if not rows:
+        return ""
+    width = max(len(r) for r in rows)
+    norm = [[(c or "").replace("|", "/").replace("\n", " ").strip() for c in r] + [""] * (width - len(r))
+            for r in rows]
+    out = ["| " + " | ".join(norm[0]) + " |", "| " + " | ".join(["---"] * width) + " |"]
+    for r in norm[1:]:
+        out.append("| " + " | ".join(r) + " |")
+    return "\n".join(out)
+
+
+def _pdf_tables(p, max_pages=50):
+    """用 pdfplumber 抽表格；表格是 PDF 解析最容易丢的信息。"""
+    try:
+        import pdfplumber
+    except Exception:
+        return {}
+    found = {}
+    try:
+        with pdfplumber.open(p) as pdf:
+            for i, page in enumerate(pdf.pages[:max_pages], 1):
+                try:
+                    tabs = page.extract_tables()
+                except Exception:
+                    continue
+                good = [t for t in tabs if t and len(t) >= 2 and any(any(c for c in row) for row in t)]
+                if good:
+                    found[i] = good
+    except Exception:
+        return {}
+    return found
+
+
 def _from_pdf(p):
     import fitz
     doc = fitz.open(p)
     parts = []
+    tables = _pdf_tables(p)
     for i, page in enumerate(doc, 1):
         t = page.get_text("text").strip()
+        block = []
         if t:
-            parts.append("## 第 " + str(i) + " 页\n\n" + t)
+            block.append("## 第 " + str(i) + " 页\n\n" + t)
+        for k, tab in enumerate(tables.get(i, []), 1):
+            md = _md_table(tab)
+            if md:
+                block.append("### 第 " + str(i) + " 页 表格 " + str(k) + "\n\n" + md)
+        if block:
+            parts.append("\n\n".join(block))
     doc.close()
     return "\n\n".join(parts)
 
