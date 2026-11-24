@@ -138,11 +138,29 @@ def retrieve(kid, query, top_k=5):
     corpus = [_tok(r["text"]) for r in rows]
     # BM25Plus：小语料下不会出现负分（Okapi 在单文档库会给出负值）
     bm25 = BM25Plus(corpus)
-    scores = bm25.get_scores(_tok(query))
-    order = sorted(range(len(rows)), key=lambda i: scores[i], reverse=True)[:top_k]
+    scores = list(bm25.get_scores(_tok(query)))
+
+    # 混合打分：BM25 管精确词命中，字二元余弦管长尾与部分重合
+    def vec(s):
+        toks = _tok(s)
+        v = {}
+        for t in toks:
+            v[t] = v.get(t, 0) + 1
+        return v
+    qv = vec(query)
+    qn = sum(x * x for x in qv.values()) ** 0.5 or 1.0
+    mixed = []
+    for i, r in enumerate(rows):
+        dv = vec(r["text"])
+        dn = sum(x * x for x in dv.values()) ** 0.5 or 1.0
+        dot = sum(val * dv.get(k, 0) for k, val in qv.items())
+        cos = dot / (qn * dn)
+        mixed.append((i, 0.65 * scores[i] + 0.35 * cos * 10))
+    score_map = {i: s for i, s in mixed}
+    order = [i for i, s in sorted(mixed, key=lambda x: -x[1])][:top_k]
     out = []
     for i in order:
-        if scores[i] <= 0:
+        if score_map.get(i, 0) <= 0:
             continue
         out.append({
             "doc_id": rows[i]["doc_id"],
